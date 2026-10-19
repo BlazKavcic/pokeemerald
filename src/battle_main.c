@@ -673,6 +673,8 @@ static void CB2_InitBattleInternal(void)
     gBattleEnvironment = BattleSetup_GetEnvironmentId();
     if (gBattleTypeFlags & BATTLE_TYPE_RECORDED)
         gBattleEnvironment = BATTLE_ENVIRONMENT_BUILDING;
+    if (gShowdownBattle)
+        gBattleEnvironment = BATTLE_ENVIRONMENT_GRASS; // no overworld map to derive it from
 
     InitBattleBgsVideo();
     LoadBattleTextboxAndBackground();
@@ -693,8 +695,9 @@ static void CB2_InitBattleInternal(void)
     else
         SetMainCallback2(CB2_HandleStartBattle);
 
-    if (!(gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_RECORDED)))
+    if (!(gBattleTypeFlags & (BATTLE_TYPE_LINK | BATTLE_TYPE_RECORDED)) && !gShowdownBattle)
     {
+        // (Showdown mode: the enemy party was written from the bridge's data already.)
         CreateNPCTrainerParty(&gEnemyParty[0], gTrainerBattleOpponent_A, TRUE);
         if (gBattleTypeFlags & BATTLE_TYPE_TWO_OPPONENTS)
             CreateNPCTrainerParty(&gEnemyParty[PARTY_SIZE / 2], gTrainerBattleOpponent_B, FALSE);

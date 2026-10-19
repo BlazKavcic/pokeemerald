@@ -15,6 +15,7 @@
 #include "pokemon.h"
 #include "string_util.h"
 #include "sound.h"
+#include "sprite.h"
 #include "util.h"
 #include "constants/abilities.h"
 #include "constants/battle.h"
@@ -49,6 +50,7 @@ enum SdOp
     OP_CHOOSE_POKEMON,  // arg: PARTY_ACTION_*
     OP_LINK_STANDBY,
     OP_END_BATTLE,      // arg: outcome
+    OP_END_BOUNCE,      // battler: stop the action-menu bounce (vanilla does this after choosing)
 };
 
 struct SdOpItem { u8 op; u8 battler; u16 arg; s32 arg2; };
@@ -70,6 +72,9 @@ static EWRAM_DATA u16 sPendingAttackMove = 0;
 static EWRAM_DATA u8 sPendingAttackBattler = 0xFF;
 static EWRAM_DATA bool8 sForcedSwitch = FALSE;
 static EWRAM_DATA bool8 sEnded = FALSE;
+static EWRAM_DATA u16 sStallFrames = 0;
+static EWRAM_DATA u8 sDeferredAnimBattler = 0xFF; // move animation waiting for the next message
+static EWRAM_DATA u16 sDeferredAnimMove = 0;
 static EWRAM_DATA u16 sLastMyHp[SD_PARTY_SIZE] = {0};
 static EWRAM_DATA u8 sLastOppHp[SD_PARTY_SIZE] = {0};
 static EWRAM_DATA u8 sLastMyStatus[SD_PARTY_SIZE] = {0};
@@ -159,12 +164,15 @@ static void HandleText(const struct SdText *t)
 
     if (sPendingAttackBattler != 0xFF && AsciiContains(line, " used "))
     {
-        // "<mon> used <move>!" -> vanilla string + the real move animation
+        // "<mon> used <move>!" -> vanilla string; the animation is decided by what follows
+        // (vanilla skips it for "doesn't affect", misses and failures).
         Push(OP_PRINT_ID, sPendingAttackBattler, STRINGID_USEDMOVE, sPendingAttackMove);
-        Push(OP_MOVE_ANIM, sPendingAttackBattler, sPendingAttackMove, 0);
+        sDeferredAnimBattler = sPendingAttackBattler;
+        sDeferredAnimMove = sPendingAttackMove;
         sPendingAttackBattler = 0xFF;
         return;
     }
+    if (AsciiStartsWith(line, "It doesn't affect"))        { PushString(STRINGID_ITDOESNTAFFECT, battler == MY_BATTLER ? OPP_BATTLER : MY_BATTLER); return; }
     if (AsciiStartsWith(line, "It's super effective"))      { PushString(STRINGID_SUPEREFFECTIVE, battler); return; }
     if (AsciiStartsWith(line, "It's not very effective"))   { PushString(STRINGID_NOTVERYEFFECTIVE, battler); return; }
     if (AsciiStartsWith(line, "A critical hit"))            { PushString(STRINGID_CRITICALHIT, battler); return; }
@@ -281,8 +289,25 @@ static void HandleRequest(const struct SdRequest *r)
     }
 }
 
+static bool8 TextCancelsAnimation(const struct SdText *t)
+{
+    return AsciiStartsWith(t->line, "It doesn't affect") || AsciiContains(t->line, " avoided the attack")
+        || AsciiContains(t->line, "attack missed") || AsciiStartsWith(t->line, "But it failed")
+        || AsciiContains(t->line, " is already ") || AsciiContains(t->line, " can't ");
+}
+
+static void ResolveDeferredAnimation(const struct SdMessage *next)
+{
+    if (sDeferredAnimBattler == 0xFF)
+        return;
+    if (!(next->type == SD_MSG_TEXT && TextCancelsAnimation(&next->text)))
+        Push(OP_MOVE_ANIM, sDeferredAnimBattler, sDeferredAnimMove, 0);
+    sDeferredAnimBattler = 0xFF;
+}
+
 static void HandleMessage(const struct SdMessage *m)
 {
+    ResolveDeferredAnimation(m);
     SdDebug("msg", m->type, (m->type == SD_MSG_TEXT) ? 0 : (m->type == SD_MSG_SWITCH_IN || m->type == SD_MSG_FAINT) ? (m->switchIn.side << 4 | m->switchIn.slot) : (m->type == SD_MSG_HP_UPDATE) ? m->hpUpdate.hp : (m->type == SD_MSG_REQUEST) ? m->request.kind : 0);
     SdStateApply(m);
     switch (m->type)
@@ -515,6 +540,11 @@ static void ExecOp(const struct SdOpItem *it)
         sEnded = TRUE;
         ShowdownFinishBattle(it->arg);
         break;
+    case OP_END_BOUNCE:
+        BtlController_EmitEndBounceEffect(B_COMM_TO_CONTROLLER);
+        MarkBattlerForControllerExec(gActiveBattler);
+        sWait = WAIT_EXEC;
+        break;
     default:
         break;
     }
@@ -553,6 +583,7 @@ static void HandleMenuResult(void)
             struct SdFrame f;
             SdEncodeForfeit(&f, SdLinkNextSeq());
             SdLinkSend(&f);
+            Push(OP_END_BOUNCE, MY_BATTLER, 0, 0);
             Push(OP_LINK_STANDBY, MY_BATTLER, 0, 0);
             break;
         }
@@ -568,6 +599,7 @@ static void HandleMenuResult(void)
         {
             u8 index = b[2] & 0x3;
             SendChoiceMove(index + 1);
+            Push(OP_END_BOUNCE, MY_BATTLER, 0, 0);
             Push(OP_LINK_STANDBY, MY_BATTLER, 0, 0);
         }
         break;
@@ -583,6 +615,7 @@ static void HandleMenuResult(void)
         else
         {
             SendChoiceSwitch(b[1] + 1);
+            Push(OP_END_BOUNCE, MY_BATTLER, 0, 0);
             Push(OP_LINK_STANDBY, MY_BATTLER, 0, 0);
         }
         break;
@@ -609,7 +642,21 @@ void ShowdownBattleMain(void)
         return;
     }
     if (gBattleControllerExecFlags)
+    {
+        // Diagnostics: a controller command that never completes soft-locks the battle.
+        if (++sStallFrames % 300 == 0)
+        {
+            struct Sprite *s = &gSprites[gBattlerSpriteIds[0]];
+            SdDebug("stall exec/anim", gBattleControllerExecFlags,
+                    gBattleSpritesDataPtr->healthBoxesData[0].animationState
+                    | gBattleSpritesDataPtr->healthBoxesData[0].specialAnimActive << 8
+                    | gBattleSpritesDataPtr->healthBoxesData[1].specialAnimActive << 9);
+            SdDebug("stall sprite y/y2", s->y, s->y2);
+            SdDebug("stall cb/anim", (s32)(s->callback == SpriteCallbackDummy), gDoingBattleAnim);
+        }
         return;
+    }
+    sStallFrames = 0;
     if (sWait == WAIT_EXEC)
         sWait = WAIT_NONE;
     if (sWait == WAIT_ACTION || sWait == WAIT_MOVE || sWait == WAIT_POKEMON)
@@ -642,6 +689,7 @@ void ShowdownBattleDriverReset(void)
     sPauseFrames = 0;
     sPendingAttackBattler = 0xFF;
     sPendingAttackMove = 0;
+    sDeferredAnimBattler = 0xFF;
     sForcedSwitch = FALSE;
     sEnded = FALSE;
     for (i = 0; i < SD_PARTY_SIZE; i++)
