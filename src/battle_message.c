@@ -1,4 +1,5 @@
 #include "global.h"
+#include "showdown/showdown.h"
 #include "battle.h"
 #include "battle_anim.h"
 #include "battle_controllers.h"
@@ -1983,6 +1984,9 @@ void BufferStringBattle(u16 stringID)
 
     switch (stringID)
     {
+    case STRINGID_SHOWDOWN_TEXT: // showdownGBA: verbatim text from the bridge
+        stringPtr = gShowdownText;
+        break;
     case STRINGID_INTROMSG: // first battle msg
         if (gBattleTypeFlags & BATTLE_TYPE_TRAINER)
         {
@@ -2539,7 +2543,11 @@ u32 BattleStringExpandPlaceholders(const u8 *src, u8 *dst)
                     toCpy = gTrainerClassNames[gTrainers[gTrainerBattleOpponent_A].trainerClass];
                 break;
             case B_TXT_TRAINER1_NAME: // trainer1 name
-                if (gBattleTypeFlags & BATTLE_TYPE_SECRET_BASE)
+                if (gShowdownBattle)
+                {
+                    toCpy = gShowdownOpponentName;
+                }
+                else if (gBattleTypeFlags & BATTLE_TYPE_SECRET_BASE)
                 {
                     for (i = 0; i < (s32) ARRAY_COUNT(gBattleResources->secretBase->trainerName); i++)
                         text[i] = gBattleResources->secretBase->trainerName[i];

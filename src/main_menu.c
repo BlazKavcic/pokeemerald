@@ -1,4 +1,5 @@
 #include "global.h"
+#include "showdown/showdown.h"
 #include "trainer_pokemon_sprites.h"
 #include "bg.h"
 #include "constants/rgb.h"
@@ -899,6 +900,15 @@ static bool8 HandleMainMenuInput(u8 taskId)
         SetGpuReg(REG_OFFSET_WIN0H, WIN_RANGE(0, DISPLAY_WIDTH));
         SetGpuReg(REG_OFFSET_WIN0V, WIN_RANGE(0, DISPLAY_HEIGHT));
         gTasks[taskId].func = Task_HandleMainMenuBPressed;
+    }
+    else if (JOY_NEW(SELECT_BUTTON))
+    {
+        // showdownGBA: SELECT on the main menu opens the Showdown lobby.
+        PlaySE(SE_SELECT);
+        DestroyTask(taskId);
+        FreeAllWindowBuffers();
+        Showdown_StartFromMainMenu();
+        return FALSE;
     }
     else if ((JOY_NEW(DPAD_UP)) && tCurrItem > 0)
     {

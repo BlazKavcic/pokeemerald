@@ -1,4 +1,5 @@
 #include "global.h"
+#include "showdown/showdown.h"
 #include "battle.h"
 #include "battle_anim.h"
 #include "battle_ai_script_commands.h"
@@ -3838,6 +3839,13 @@ static void UNUSED BattleIntroSwitchInPlayerMons(void)
     }
 }
 
+void ShowdownFinishBattle(u8 outcome)
+{
+    gBattleOutcome = outcome;
+    gCurrentActionFuncId = B_ACTION_FINISHED;
+    gBattleMainFunc = HandleEndTurn_FinishBattle;
+}
+
 static void TryDoEventsBeforeFirstTurn(void)
 {
     s32 i;
@@ -3846,6 +3854,13 @@ static void TryDoEventsBeforeFirstTurn(void)
 
     if (gBattleControllerExecFlags)
         return;
+    if (gShowdownBattle)
+    {
+        // Showdown mode: the bridge drives everything from here on.
+        BattlePutTextOnWindow(gText_EmptyString3, B_WIN_MSG);
+        gBattleMainFunc = ShowdownBattleMain;
+        return;
+    }
 
     if (gBattleStruct->switchInAbilitiesCounter == 0)
     {
