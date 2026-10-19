@@ -180,7 +180,7 @@ static void Task_Lobby(u8 taskId)
         SdEncodeCancelSearch(&f, SdLinkNextSeq());
         SdLinkSend(&f);
     }
-    else if (JOY_NEW(B_BUTTON) && gSdState.phase != SD_PHASE_SEARCHING)
+    else if (JOY_NEW(B_BUTTON) && (gSdState.phase == SD_PHASE_IDLE || gSdState.phase == SD_PHASE_ENDED))
     {
         PlaySE(SE_SELECT);
         gMain.savedCallback = CB2_InitMainMenu;

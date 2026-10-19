@@ -574,7 +574,8 @@ static void HandleMenuResult(void)
                 Push(OP_CHOOSE_POKEMON, MY_BATTLER, PARTY_ACTION_CHOOSE_MON, 0);
             break;
         case B_ACTION_USE_ITEM:
-            PushString(STRINGID_ITEMSCANTBEUSEDNOW, MY_BATTLER);
+            // No items in Showdown battles: just reopen the action menu (no message, so the
+            // menu cannot get stuck behind a text box).
             Push(OP_CHOOSE_ACTION, MY_BATTLER, 0, 0);
             break;
         case B_ACTION_RUN:
@@ -644,7 +645,9 @@ void ShowdownBattleMain(void)
     if (gBattleControllerExecFlags)
     {
         // Diagnostics: a controller command that never completes soft-locks the battle.
-        if (++sStallFrames % 300 == 0)
+        // Menus legitimately hold the exec flag until the player answers, so skip those.
+        bool8 menuOpen = sWait == WAIT_ACTION || sWait == WAIT_MOVE || sWait == WAIT_POKEMON;
+        if (!menuOpen && ++sStallFrames % 300 == 0)
         {
             struct Sprite *s = &gSprites[gBattlerSpriteIds[0]];
             SdDebug("stall exec/anim", gBattleControllerExecFlags,
