@@ -98,3 +98,29 @@ bool8 SdLinkSend(const struct SdFrame *f)
     sMailbox.outHead = head; // publish after the bytes are in place
     return TRUE;
 }
+
+static u32 PutNumber(char *dst, s32 value)
+{
+    char tmp[12];
+    u32 n = 0, i = 0;
+    u32 v;
+    if (value < 0) { dst[i++] = '-'; v = (u32)(-value); } else v = (u32)value;
+    do { tmp[n++] = '0' + (v % 10); v /= 10; } while (v);
+    while (n) dst[i++] = tmp[--n];
+    return i;
+}
+
+void SdDebug(const char *tag, s32 a, s32 b)
+{
+    char buf[100];
+    u32 i = 0;
+    struct SdFrame f;
+    while (tag[i] && i < 60) { buf[i] = tag[i]; i++; }
+    buf[i++] = ' ';
+    i += PutNumber(buf + i, a);
+    buf[i++] = ' ';
+    i += PutNumber(buf + i, b);
+    buf[i] = 0;
+    SdEncodeDebug(&f, sSeq++, buf);
+    SdLinkSend(&f);
+}

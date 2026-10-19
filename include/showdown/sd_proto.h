@@ -29,6 +29,7 @@ enum SdMsgType
     SD_MSG_CHOICE_REJECTED = 0x31,
     SD_MSG_TIMER = 0x32,
     SD_MSG_BATTLE_END = 0x40,
+    SD_MSG_DEBUG = 0x7E,   // GBA -> bridge: free-text trace line
     SD_MSG_ERROR = 0x7F,
     SD_MSG_GBA_HELLO = 0x81,
     SD_MSG_SEARCH = 0x82,
@@ -138,5 +139,6 @@ void SdEncodeChooseMove(struct SdFrame *f, u8 seq, u16 rqid, u8 slot);
 void SdEncodeChooseSwitch(struct SdFrame *f, u8 seq, u16 rqid, u8 slot);
 void SdEncodeTimerToggle(struct SdFrame *f, u8 seq);
 void SdEncodeForfeit(struct SdFrame *f, u8 seq);
+void SdEncodeDebug(struct SdFrame *f, u8 seq, const char *ascii);
 
 #endif // GUARD_SHOWDOWN_SD_PROTO_H

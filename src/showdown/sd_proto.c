@@ -291,3 +291,13 @@ void SdEncodeChooseSwitch(struct SdFrame *f, u8 seq, u16 rqid, u8 slot)
 
 void SdEncodeTimerToggle(struct SdFrame *f, u8 seq) { Begin(f, SD_MSG_TIMER_TOGGLE, seq); }
 void SdEncodeForfeit(struct SdFrame *f, u8 seq) { Begin(f, SD_MSG_FORFEIT, seq); }
+
+void SdEncodeDebug(struct SdFrame *f, u8 seq, const char *ascii)
+{
+    u32 n = 0, i;
+    Begin(f, SD_MSG_DEBUG, seq);
+    while (ascii[n] && n < 100) n++;
+    W8(f, n);
+    for (i = 0; i < n; i++)
+        W8(f, (u8)ascii[i]);
+}

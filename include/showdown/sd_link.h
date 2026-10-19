@@ -14,5 +14,7 @@ bool8 SdLinkPoll(struct SdFrame *out);      // one decoded frame if available
 bool8 SdLinkSend(const struct SdFrame *f);
 bool8 SdLinkIsUp(void);
 u8 SdLinkNextSeq(void);
+// Sends "tag a b" to the bridge's log (no-op if the link is down).
+void SdDebug(const char *tag, s32 a, s32 b);
 
 #endif // GUARD_SHOWDOWN_SD_LINK_H

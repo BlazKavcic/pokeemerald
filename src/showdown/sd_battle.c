@@ -154,6 +154,7 @@ static void SendChoiceSwitch(u8 slot)
 static void HandleText(const struct SdText *t)
 {
     const u8 *line = t->line;
+    SdDebug("text", sPendingAttackBattler, sQCount);
     u8 battler = AsciiStartsWith(line, "The opposing ") ? OPP_BATTLER : MY_BATTLER;
 
     if (sPendingAttackBattler != 0xFF && AsciiContains(line, " used "))
@@ -282,6 +283,7 @@ static void HandleRequest(const struct SdRequest *r)
 
 static void HandleMessage(const struct SdMessage *m)
 {
+    SdDebug("msg", m->type, (m->type == SD_MSG_TEXT) ? 0 : (m->type == SD_MSG_SWITCH_IN || m->type == SD_MSG_FAINT) ? (m->switchIn.side << 4 | m->switchIn.slot) : (m->type == SD_MSG_HP_UPDATE) ? m->hpUpdate.hp : (m->type == SD_MSG_REQUEST) ? m->request.kind : 0);
     SdStateApply(m);
     switch (m->type)
     {
@@ -381,6 +383,7 @@ static void EmitChooseMove(void)
 
 static void ExecOp(const struct SdOpItem *it)
 {
+    SdDebug("op", it->op, it->battler << 16 | (it->arg & 0xFFFF));
     gActiveBattler = it->battler;
     switch (it->op)
     {
@@ -521,6 +524,7 @@ static void ExecOp(const struct SdOpItem *it)
 static void HandleMenuResult(void)
 {
     u8 *b = gBattleBufferB[MY_BATTLER];
+    SdDebug("menu", sWait, b[1] | b[2] << 8 | b[3] << 16);
     switch (sWait)
     {
     case WAIT_ACTION:
